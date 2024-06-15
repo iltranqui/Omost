@@ -1,3 +1,18 @@
+"""
+This script contains the implementation of a Gradio app for an Omost chatbot. It uses various models and libraries for natural language processing and image generation.
+
+The code performs the following tasks:
+- Imports necessary libraries and sets up environment variables.
+- Loads models and tokenizer for Stable Diffusion XL (SDXL) and Language Model (LLM).
+- Defines utility functions for converting between PyTorch tensors and NumPy arrays, resizing images, and generating chat responses.
+- Implements the chat_fn function, which takes a user message, chat history, and other parameters, and generates a response using the LLM model.
+- Implements the post_chat function, which processes the chat history and generates canvas outputs.
+- Implements the diffusion_fn function, which performs image generation using the SDXL model and the canvas outputs.
+
+Note: This code assumes the presence of certain libraries, models, and files, which are not included in this code snippet.
+"""
+
+# Rest of the code...
 import os
 
 os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), 'hf_download')
@@ -29,15 +44,17 @@ from transformers import CLIPTextModel, CLIPTokenizer
 from lib_omost.pipeline import StableDiffusionXLOmostPipeline
 from chat_interface import ChatInterface
 from transformers.generation.stopping_criteria import StoppingCriteriaList
+# from diffusers.models.modeling_outputs import Transformer2DModelOutput
 
 import lib_omost.canvas as omost_canvas
 
 
 # SDXL
 
-sdxl_name = 'SG161222/RealVisXL_V4.0'
-# sdxl_name = 'stabilityai/stable-diffusion-xl-base-1.0'
+# sdxl_name = 'SG161222/RealVisXL_V4.0'
+sdxl_name = 'stabilityai/stable-diffusion-xl-base-1.0'
 
+# here all the models are loaded in fp16 -> it also downloads the models
 tokenizer = CLIPTokenizer.from_pretrained(
     sdxl_name, subfolder="tokenizer")
 tokenizer_2 = CLIPTokenizer.from_pretrained(
@@ -55,16 +72,17 @@ unet.set_attn_processor(AttnProcessor2_0())
 vae.set_attn_processor(AttnProcessor2_0())
 
 pipeline = StableDiffusionXLOmostPipeline(
-    vae=vae,
-    text_encoder=text_encoder,
-    tokenizer=tokenizer,
-    text_encoder_2=text_encoder_2,
-    tokenizer_2=tokenizer_2,
-    unet=unet,
+    vae=vae,  # We use the vae to encode the images 
+    text_encoder=text_encoder, # We use the text encoder to encode the text
+    tokenizer=tokenizer,  # We use the tokenizer to tokenize the text
+    text_encoder_2=text_encoder_2,  # We use the text encoder to encode the text
+    tokenizer_2=tokenizer_2, # We use the tokenizer to tokenize the text
+    unet=unet,  # We use the unet to decode the latents
     scheduler=None,  # We completely give up diffusers sampling system and use A1111's method
 )
 
 memory_management.unload_all_models([text_encoder, text_encoder_2, vae, unet])
+# 1st setup, in order to download all the models
 
 # LLM
 
@@ -85,10 +103,13 @@ llm_tokenizer = AutoTokenizer.from_pretrained(
 )
 
 memory_management.unload_all_models(llm_model)
+# To undload all the models from memory. 
 
 
 @torch.inference_mode()
 def pytorch2numpy(imgs):
+    # The provided Python code is a function named pytorch2numpy that converts a list of PyTorch tensors representing images into a list of NumPy arrays. This function is particularly useful when you want to perform some operations on images using libraries that accept NumPy arrays but not PyTorch tensors.
+    # This should be for converting the output of the model (images) to numpy arrays for display.
     results = []
     for x in imgs:
         y = x.movedim(0, -1)
@@ -100,6 +121,8 @@ def pytorch2numpy(imgs):
 
 @torch.inference_mode()
 def numpy2pytorch(imgs):
+    # The provided Python code is a function named numpy2pytorch that converts a list of NumPy arrays representing images into a PyTorch tensor. This function is particularly useful when you want to perform some operations on images using libraries that accept PyTorch tensors but not NumPy arrays.
+    # This should be for converting the input images to pytorch tensors for processing.
     h = torch.from_numpy(np.stack(imgs, axis=0)).float() / 127.5 - 1.0
     h = h.movedim(-1, 1)
     return h
